@@ -7,6 +7,7 @@ from nav_msgs.msg import Odometry
 from collections import deque
 from common import utilities as util
 from geometry_msgs.msg import Pose
+from utils.influxdb import InfluxDBParameterLogger
 import time
 
 class MinimalPublisher(Node):
@@ -28,6 +29,7 @@ class MinimalPublisher(Node):
         self.start = True
         self.goal = [3.5, 0.0] #[-3.56,-3.47]
         self.num_msg = None
+        self.influxdb_logger = InfluxDBParameterLogger("localhost", 8086, "kiddee")
 
     def scan_callback(self, msg):
         #print(msg.ranges,'\n','----------------------')
@@ -38,6 +40,8 @@ class MinimalPublisher(Node):
         self.robot_x = msg.pose.pose.position.x
         self.robot_y = msg.pose.pose.position.y
         _, _, self.robot_heading = util.euler_from_quaternion(msg.pose.pose.orientation)
+        # insert odom coordiate (x,y) to InfluxDB
+        self.influxdb_logger.insert_data(time.time(), "parameters", {"robot_x": self.robot_x, "robot_y": self.robot_y})
 
         # Moodang
         #print('odom_st: ', len(self.odom_stack))
@@ -56,6 +60,7 @@ class MinimalPublisher(Node):
                         self.goal_pose_pub.publish(goal_pose)
                         time.sleep(0.1)
                         print('I am in a loop')
+                        self.influxdb_logger.insert_data(time.time(), "status", {"status": "looping"})
                     else:
                         goal_pose = Pose()
                         goal_pose.position.x = self.goal[0]
@@ -63,6 +68,7 @@ class MinimalPublisher(Node):
                         self.goal_pose_pub.publish(goal_pose)
                         time.sleep(0.1)
                         print('I am going to goal')
+                        self.influxdb_logger.insert_data(time.time(), "status", {"status": "not looping"})
                 else:
                     goal_pose = Pose()
                     goal_pose.position.x = self.goal[0]
@@ -70,6 +76,7 @@ class MinimalPublisher(Node):
                     self.goal_pose_pub.publish(goal_pose)
                     time.sleep(0.1)
                     print('I am near goal')
+                    self.influxdb_logger.insert_data(time.time(), "status", {"status": "near the goal"})
             else:
                 print('my odom stack is not full yet')
                 goal_pose = Pose()
